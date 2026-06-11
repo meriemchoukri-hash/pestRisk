@@ -245,9 +245,9 @@ pestRisk/
 ## Citation
 
 ```
-Benali M. (2026). pestRisk: Modelling Current Agricultural Pest Invasion Risk
+Choukri M. (2026). pestRisk: Modelling Current Agricultural Pest Invasion Risk
 Using SDMs. R package version 0.1.0.
-https://github.com/meriembenali/pestRisk
+https://github.com/meriemchoukri-hash/pestRisk
 ```
 
 ---
