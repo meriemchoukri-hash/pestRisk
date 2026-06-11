@@ -4,8 +4,8 @@ Title: Modelling Current Agricultural Pest Invasion Risk Using SDMs
 Version: 0.1.0
 Date: 2026-06-07
 Authors@R: c(
-    person("Meriem", "Benali", email = "meriem@fsdm.ac.ma",
-           role = c("aut", "cre")))
+    person("Meriem", "Choukri", email = "meriem.choukri@iav.ac.ma",
+       role = c("aut", "cre"))
 Description: A complete, reproducible toolkit for modelling the current
     distribution and invasion risk of agricultural pests. Implements a
     full pipeline: download of GBIF occurrence data and WorldClim bioclimatic
@@ -44,5 +44,5 @@ Suggests:
     corrplot
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://github.com/meriembenali/pestRisk
-BugReports: https://github.com/meriembenali/pestRisk/issues
+URL: https://github.com/meriemchoukri/pestRisk
+BugReports: https://github.com/meriemchoukri/pestRisk/issues
