@@ -64,7 +64,22 @@ install.packages(c(
 ```
 
 ---
+## Data Sources
 
+| Data | Source | Citation |
+|------|--------|----------|
+| *Spodoptera frugiperda* occurrences | GBIF.org via rgbif | GBIF.org (2026) |
+| *Tuta absoluta* occurrences | GBIF.org via rgbif | GBIF.org (2026) |
+| *Ceratitis capitata* occurrences | GBIF.org via rgbif | GBIF.org (2026) |
+| Bioclimatic variables | WorldClim v2.1 | Fick & Hijmans (2017) |
+
+**References:**
+- GBIF.org (2026) GBIF Occurrence Download. https://www.gbif.org
+- Fick, S.E. & Hijmans, R.J. (2017) WorldClim 2. 
+  *International Journal of Climatology* 37: 4302–4315.
+  https://doi.org/10.1002/joc.5086
+- Chamberlain et al. (2024) rgbif: Interface to the Global Biodiversity 
+  Information Facility API. https://CRAN.R-project.org/package=rgbif
 ## Quick start
 
 ```r
