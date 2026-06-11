@@ -1,6 +1,6 @@
 ---
 title: "Introduction to pestRisk: Modelling Pest Invasion Risk"
-author: "Meriem Benali"
+author: "Meriem Choukri"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
@@ -256,7 +256,7 @@ generate_report(
   country_summary = country_tbl,
   model_obj       = rf_out,
   output_file     = "Spodoptera_frugiperda_risk_report.html",
-  author          = "Meriem Benali – FSDM Fès"
+  author          = "Meriem Choukri"
 )
 ```
 
