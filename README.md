@@ -254,7 +254,7 @@ https://github.com/meriembenali/pestRisk
 
 ## License
 
-MIT © 2026 Meriem Benali – FSDM Fès
+MIT © 2026 Meriem Choukri – iav rabat
 
 ---
 
