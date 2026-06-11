@@ -1,0 +1,313 @@
+---
+title: "Introduction to pestRisk: Modelling Pest Invasion Risk"
+author: "Meriem Benali"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to pestRisk}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  warning   = FALSE,
+  message   = FALSE
+)
+```
+
+## Overview
+
+`pestRisk` implements a complete Species Distribution Modelling (SDM) workflow
+to predict the current invasion risk of agricultural pest species. The package
+covers every step from raw data download to publication-ready risk maps and
+automatic reports.
+
+```
+GBIF occurrences → clean → WorldClim → VIF selection
+    → Random Forest + MaxEnt → evaluate → risk map → report
+```
+
+The three target species are:
+
+| Species | Common name | Crop impact |
+|---------|-------------|-------------|
+| *Spodoptera frugiperda* | Fall armyworm | Maize, sorghum, rice |
+| *Tuta absoluta* | Tomato leafminer | Tomato, pepper, potato |
+| *Ceratitis capitata* | Mediterranean fruit fly | Citrus, stone fruits |
+
+---
+
+## Step 1 – Download GBIF occurrences
+
+```{r download_gbif, eval = FALSE}
+library(pestRisk)
+
+# Download fall armyworm records
+occ_raw <- download_gbif(
+  species = "Spodoptera frugiperda",
+  limit   = 2000,
+  year    = "2010,2023"
+)
+
+dim(occ_raw)
+head(occ_raw[, c("species", "decimalLongitude", "decimalLatitude",
+                  "year", "country")])
+```
+
+Using the built-in example dataset:
+
+```{r load_example}
+library(pestRisk)
+data("spodoptera_occ")
+dim(spodoptera_occ)
+```
+
+---
+
+## Step 2 – Clean occurrences
+
+Spatial cleaning removes NA coordinates, impossible values, sea points,
+geographic outliers, and applies spatial thinning at 20 km to reduce
+sampling bias.
+
+```{r clean}
+clean_result <- clean_occurrences(
+  occ       = spodoptera_occ,
+  thin_dist = 20,    # 20 km thinning
+  outlier_sd = 3,
+  remove_sea = FALSE  # skipped here since we use simulated data
+)
+
+print(clean_result$report)
+cat("\nFinal occurrences:", nrow(clean_result$data), "\n")
+```
+
+---
+
+## Step 3 – Download WorldClim variables
+
+```{r worldclim, eval = FALSE}
+# Download 6 key BIO variables at 10 arcmin for Africa + Mediterranean
+africa_ext <- c(-20, 55, -40, 40)
+
+clim <- download_worldclim(
+  path   = "~/pestRisk_data",
+  res    = "10",
+  extent = africa_ext,
+  vars   = c(1, 4, 5, 6, 12, 15)   # BIO1, BIO4, BIO5, BIO6, BIO12, BIO15
+)
+terra::plot(clim, main = names(clim))
+```
+
+**Why these 6 variables?**
+
+| Variable | Ecological relevance for pest insects |
+|----------|---------------------------------------|
+| BIO1 (Annual Mean Temp.) | Determines metabolic rate and development speed |
+| BIO4 (Temp. Seasonality) | Controls overwinter survival |
+| BIO5 (Max Temp. Hottest Month) | Heat stress upper threshold |
+| BIO6 (Min Temp. Coldest Month) | Cold-kill threshold for populations |
+| BIO12 (Annual Precip.) | Habitat moisture and host plant quality |
+| BIO15 (Precip. Seasonality) | Drought stress and host phenology |
+
+---
+
+## Step 4 – Prepare predictors (VIF + Pearson)
+
+```{r prepare, eval = FALSE}
+bg_pts <- generate_background_points(
+  clim_stack     = clim,
+  occurrences_sf = clean_result$data,
+  n              = 5000,
+  min_dist_km    = 50
+)
+
+prep <- prepare_predictors(
+  occurrences_sf = clean_result$data,
+  background_sf  = bg_pts,
+  clim_stack     = clim,
+  cor_threshold  = 0.75,
+  vif_threshold  = 5
+)
+
+cat("Selected variables:", prep$selected_vars, "\n")
+cat("VIF values:\n"); print(prep$vif_final)
+```
+
+Using the pre-built modelling dataset:
+
+```{r load_model_data}
+data("spodoptera_model_data")
+str(spodoptera_model_data)
+table(spodoptera_model_data$presence)
+```
+
+---
+
+## Step 5a – Train Random Forest
+
+```{r train_rf}
+rf_out <- train_rf_model(
+  model_data = spodoptera_model_data,
+  n_trees    = 200,
+  balance    = TRUE,
+  seed       = 42
+)
+
+print(rf_out$importance)
+```
+
+---
+
+## Step 5b – Train MaxEnt
+
+```{r train_maxent}
+mx_out <- train_maxent(
+  model_data      = spodoptera_model_data,
+  reg_mult        = 1.5,
+  feature_classes = "lqh",
+  seed            = 42
+)
+```
+
+---
+
+## Step 6 – Evaluate models
+
+```{r evaluate}
+eval_out <- evaluate_models(
+  rf_out, mx_out,
+  model_names = c("Random Forest", "MaxEnt"),
+  threshold   = 0.5,
+  plot_roc    = TRUE
+)
+
+print(eval_out$metrics)
+```
+
+```{r roc_plot, fig.cap = "ROC curves for RF and MaxEnt models"}
+print(eval_out$roc_plot)
+```
+
+**Interpretation:**  
+For pest surveillance, **Sensitivity** is more important than Specificity —
+a missed invasion zone (false negative) is more costly than unnecessary
+monitoring (false positive).
+
+---
+
+## Step 7 – Variable importance plot
+
+```{r var_imp, fig.cap = "Random Forest variable importance"}
+plot_variable_importance(rf_out, type = "importance")
+```
+
+```{r response_curves, fig.cap = "MaxEnt marginal response curves"}
+plot_variable_importance(mx_out, type = "response")
+```
+
+---
+
+## Step 8 – Predict risk map (requires raster data)
+
+```{r predict_map, eval = FALSE}
+risk <- predict_risk_map(rf_out, clim, breaks = c(0.33, 0.66))
+
+# Continuous suitability map
+p1 <- plot_risk_map(
+  risk,
+  type           = "continuous",
+  occurrences_sf = clean_result$data,
+  species_name   = "Spodoptera frugiperda"
+)
+print(p1)
+
+# Classified risk map
+p2 <- plot_risk_map(risk, type = "classified",
+                     species_name = "Spodoptera frugiperda")
+print(p2)
+```
+
+---
+
+## Step 9 – Country risk summary
+
+```{r country_risk, eval = FALSE}
+country_tbl <- summarize_country_risk(risk, top_n = 15)
+print(country_tbl)
+```
+
+---
+
+## Step 10 – Generate automatic report
+
+```{r report, eval = FALSE}
+generate_report(
+  species_name    = "Spodoptera frugiperda",
+  occurrences_sf  = clean_result$data,
+  clean_report    = clean_result$report,
+  eval_results    = eval_out,
+  risk_map_obj    = risk,
+  country_summary = country_tbl,
+  model_obj       = rf_out,
+  output_file     = "Spodoptera_frugiperda_risk_report.html",
+  author          = "Meriem Benali – FSDM Fès"
+)
+```
+
+---
+
+## Complete one-liner workflow
+
+```{r complete_workflow, eval = FALSE}
+library(pestRisk)
+
+species    <- "Tuta absoluta"
+study_ext  <- c(-20, 55, -40, 40)
+data_path  <- "~/pestRisk_data"
+
+# 1. Download
+occ   <- download_gbif(species, limit = 1500, year = "2010,2023")
+clim  <- download_worldclim(path = data_path, res = "10",
+                              extent = study_ext)
+
+# 2. Clean
+clean <- clean_occurrences(occ)
+
+# 3. Background
+bg <- generate_background_points(clim, clean$data, n = 5000)
+
+# 4. Predictors
+prep <- prepare_predictors(clean$data, bg, clim)
+
+# 5. Models
+rf_model <- train_rf_model(prep$model_data)
+mx_model <- train_maxent(prep$model_data)
+
+# 6. Evaluate
+eval <- evaluate_models(rf_model, mx_model,
+                         model_names = c("RF","MaxEnt"))
+
+# 7. Map
+risk <- predict_risk_map(rf_model, clim)
+
+# 8. Summary
+ctry <- summarize_country_risk(risk)
+
+# 9. Report
+generate_report(species, clean$data, clean$report, eval, risk, ctry,
+                rf_model, output_file = "tuta_absoluta_report.html")
+```
+
+---
+
+## Session info
+
+```{r session}
+sessionInfo()
+```

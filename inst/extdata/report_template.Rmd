@@ -1,0 +1,208 @@
+---
+title: "`r params$title`"
+author: "`r params$author`"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: kable
+  pdf_document:
+    toc: true
+    number_sections: true
+params:
+  species_name:    "Unknown species"
+  title:           "Pest Invasion Risk Report"
+  author:          "pestRisk"
+  n_occ:           0
+  clean_report:    NULL
+  metrics_df:      NULL
+  country_summary: NULL
+  suit_map_file:   NULL
+  risk_map_file:   NULL
+  roc_file:        NULL
+  imp_file:        NULL
+  model_type:      "rf"
+  selected_vars:   NULL
+  breaks:          !r c(0.33, 0.66)
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.align = "center")
+```
+
+---
+
+# Executive Summary
+
+This report presents the current invasion risk assessment for
+**_`r params$species_name`_** generated with the `pestRisk` R package.
+
+The analysis used **`r params$n_occ` cleaned occurrence records** from GBIF
+and bioclimatic variables from WorldClim v2.1. Two species distribution models
+(SDM) were trained and evaluated. Habitat suitability was predicted across the
+study region and classified into **Low / Medium / High** risk zones at
+thresholds of `r params$breaks[1]` and `r params$breaks[2]`.
+
+---
+
+# Data Sources
+
+## GBIF Occurrence Data
+
+| Item | Value |
+|------|-------|
+| Species | *`r params$species_name`* |
+| Records after cleaning | `r params$n_occ` |
+| Source | Global Biodiversity Information Facility (GBIF) |
+| Filter | Georeferenced, no geospatial flags, human observations |
+
+## WorldClim Climate Data
+
+- **Source**: WorldClim v2.1 (Fick & Hijmans 2017)
+- **Variables selected after VIF/Pearson filtering**:
+  `r paste(params$selected_vars, collapse = ", ")`
+
+---
+
+# Data Cleaning
+
+```{r cleaning_report}
+if (!is.null(params$clean_report)) {
+  knitr::kable(params$clean_report,
+               caption = "Spatial cleaning steps applied to raw GBIF records",
+               col.names = c("Step", "Records removed", "Records remaining"))
+}
+```
+
+---
+
+# Model Performance
+
+```{r metrics}
+if (!is.null(params$metrics_df)) {
+  knitr::kable(params$metrics_df,
+               caption = "SDM performance metrics on held-out test set",
+               digits = 3)
+}
+```
+
+**Metric definitions:**
+
+- **AUC** – Area Under the ROC Curve (0.5 = random, 1.0 = perfect)
+- **Sensitivity** – Proportion of true invasion areas correctly identified
+- **Specificity** – Proportion of non-invasion areas correctly identified
+- **F1** – Harmonic mean of Precision and Recall
+
+```{r roc, fig.cap = "ROC curves for fitted SDM models"}
+if (!is.null(params$roc_file) && file.exists(params$roc_file))
+  knitr::include_graphics(params$roc_file)
+```
+
+---
+
+# Suitability Map
+
+```{r suit_map, fig.cap = paste("Continuous habitat suitability –", params$species_name), out.width = "100%"}
+if (!is.null(params$suit_map_file) && file.exists(params$suit_map_file))
+  knitr::include_graphics(params$suit_map_file)
+```
+
+---
+
+# Risk Classification Map
+
+```{r risk_map, fig.cap = "Invasion risk classification (Low / Medium / High)", out.width = "100%"}
+if (!is.null(params$risk_map_file) && file.exists(params$risk_map_file))
+  knitr::include_graphics(params$risk_map_file)
+```
+
+| Risk class | Suitability range | Interpretation |
+|------------|-------------------|----------------|
+| Low | 0 – `r params$breaks[1]` | Unlikely to sustain a population |
+| Medium | `r params$breaks[1]` – `r params$breaks[2]` | Marginal conditions; possible in warm years |
+| High | `r params$breaks[2]` – 1 | Highly suitable; population likely to establish |
+
+---
+
+# Variable Importance
+
+```{r var_imp, fig.cap = "Climate variable importance for pest distribution", out.width = "90%"}
+if (!is.null(params$imp_file) && file.exists(params$imp_file))
+  knitr::include_graphics(params$imp_file)
+```
+
+---
+
+# Regional Risk Ranking
+
+The following table shows the **top vulnerable countries/regions** ranked by
+mean habitat suitability.
+
+```{r country_table}
+if (!is.null(params$country_summary)) {
+  knitr::kable(
+    params$country_summary[, c("risk_rank","region","mean_suitability",
+                                "max_suitability","pct_high_risk")],
+    caption  = paste("Top", nrow(params$country_summary),
+                     "highest-risk regions –", params$species_name),
+    col.names = c("Rank","Region","Mean suitability",
+                  "Max suitability","% High-risk pixels"),
+    digits   = 3
+  )
+}
+```
+
+---
+
+# Ecological Interpretation
+
+*_`r params$species_name`_* is a **highly polyphagous agricultural pest** with
+high dispersal capacity. The SDM results indicate that warm, humid zones with
+mild winters represent the most favourable conditions for population
+establishment and spread.
+
+**Agronomic implications:**
+
+1. **Priority surveillance zones** (High risk) should be integrated into
+   national phytosanitary monitoring programmes and early-warning systems.
+2. **Border inspection** should be reinforced for plant products originating
+   from High-risk regions.
+3. **Climate change** is expected to shift and expand the suitable range
+   poleward and to higher elevations.
+
+---
+
+# Reproducibility & Methods
+
+## Software
+
+```{r session_info, echo = TRUE}
+sessionInfo()
+```
+
+## Modelling workflow
+
+1. Occurrence data downloaded from GBIF (`rgbif`) with `hasCoordinate = TRUE`
+   and no geospatial flags.
+2. Spatial cleaning: NA removal, impossible coordinates, Null Island, marine
+   points (geodata world boundaries), geographic outlier detection (Mahalanobis
+   distance, 3 SD), spatial thinning (10 km grid).
+3. WorldClim v2.1 bioclimatic variables downloaded via `geodata::worldclim_global`.
+4. Variable selection: Pearson |r| > 0.75 → remove one of each pair; VIF > 5
+   → stepwise elimination.
+5. Background points: random sampling from non-NA pixels with optional 50 km
+   exclusion buffer from presences.
+6. Random Forest (500 trees, balanced 1:1, `randomForest` package).
+7. MaxEnt via `maxnet` (reg.mult = 1.5, features: linear + quadratic + hinge).
+8. Evaluation: AUC (pROC), Accuracy, Sensitivity, Specificity, F1 on 25%
+   stratified test set.
+9. Risk classification: suitability ∈ [0, 0.33] = Low; [0.33, 0.66] = Medium;
+   [0.66, 1] = High.
+
+---
+
+*Report generated by the `pestRisk` R package | FSDM Fès – `r Sys.Date()`*

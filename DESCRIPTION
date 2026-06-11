@@ -1,0 +1,48 @@
+Package: pestRisk
+Type: Package
+Title: Modelling Current Agricultural Pest Invasion Risk Using SDMs
+Version: 0.1.0
+Date: 2026-06-07
+Authors@R: c(
+    person("Meriem", "Benali", email = "meriem@fsdm.ac.ma",
+           role = c("aut", "cre")))
+Description: A complete, reproducible toolkit for modelling the current
+    distribution and invasion risk of agricultural pests. Implements a
+    full pipeline: download of GBIF occurrence data and WorldClim bioclimatic
+    variables, spatial data cleaning, variable selection (Pearson correlation
+    and VIF stepwise elimination), species distribution modelling (Random
+    Forest and MaxEnt via maxnet), risk-map generation classified into
+    low/medium/high categories, country-level risk summaries, and automatic
+    HTML/PDF reporting. Targeted at three major pest species: Spodoptera
+    frugiperda (fall armyworm), Tuta absoluta (tomato leafminer), and
+    Ceratitis capitata (Mediterranean fruit fly). Designed to support
+    phytosanitary surveillance and agricultural risk assessment.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.1.0)
+Imports:
+    rgbif (>= 3.7.0),
+    terra (>= 1.7.0),
+    sf (>= 1.0.0),
+    geodata (>= 0.5.0),
+    randomForest (>= 4.7.0),
+    maxnet (>= 0.1.4),
+    pROC (>= 1.18.0),
+    ggplot2 (>= 3.4.0),
+    dplyr (>= 1.1.0),
+    tidyr (>= 1.3.0),
+    viridis (>= 0.6.0),
+    rmarkdown (>= 2.20),
+    knitr (>= 1.40)
+Suggests:
+    testthat (>= 3.0.0),
+    covr,
+    corrplot
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+URL: https://github.com/meriembenali/pestRisk
+BugReports: https://github.com/meriembenali/pestRisk/issues
