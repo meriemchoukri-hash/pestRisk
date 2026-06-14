@@ -143,24 +143,16 @@ generate_report(
 ```
 
 ---
+## Vignette
 
-## Example data
+[Voir la vignette avec les outputs](https://htmlpreview.github.io/?https://raw.githubusercontent.com/meriemchoukri-hash/pestRisk/main/vignettes/introduction-to-pestRisk.html)
 
-The package ships three ready-to-use example datasets:
+## Data Sources
 
-```r
-data("spodoptera_occ")         # 200 simulated S. frugiperda occurrences
-data("tuta_occ")               # 150 simulated T. absoluta occurrences
-data("spodoptera_model_data")  # Pre-built presence/background modelling table
-```
+The CSV files used in this package were downloaded from 
+reliable open-access resources (GBIF, WorldClim, etc.)
 
-Run the vignette for a fully reproducible walkthrough:
 
-```r
-vignette("introduction-to-pestRisk")
-```
-
----
 
 ## Function reference
 
