@@ -121,7 +121,7 @@ train_maxent <- function(model_data,
 
   # ---- Fit MaxEnt model ------------------------------------------------------
   p <- as.integer(train_df$presence)
-  X <- as.matrix(train_df[, predictors, drop = FALSE])
+  X <- as.data.frame(train_df[, predictors, drop = FALSE])
 
   mx_model <- tryCatch(
     maxnet::maxnet(p = p, data = X,
@@ -135,7 +135,7 @@ train_maxent <- function(model_data,
 
   # ---- Compute response curves (marginal responses) -------------------------
   response_list <- lapply(predictors, function(var) {
-    var_range <- seq(min(X[, var]), max(X[, var]), length.out = 100)
+    var_range <- seq(min(X[[var]]), max(X[[var]]), length.out = 100)
     newdat    <- as.data.frame(matrix(
       rep(colMeans(X), 100), nrow = 100, byrow = TRUE
     ))

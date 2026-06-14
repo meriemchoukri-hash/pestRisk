@@ -86,7 +86,7 @@
 #' dd_tuta <- degree_days_risk(tavg_af, t_base = 8.0, n_gen_threshold = 340)
 #' }
 #'
-#' @importFrom terra lapp app classify
+#' @importFrom terra app classify clamp
 #' @export
 degree_days_risk <- function(clim_stack,
                               t_base         = 12.5,
@@ -109,20 +109,17 @@ degree_days_risk <- function(clim_stack,
   # ---- Step 1: Compute monthly GDD ------------------------------------------
   # For each monthly mean temperature layer:
   #   GDD_month = max(0, min(T_mean, T_upper) - T_base) * 30 days
-  gdd_monthly <- terra::lapp(
-    clim_stack,
-    fun = function(x) pmax(0, pmin(x, t_upper) - t_base) * 30
-  )
+  # Done with vectorized terra arithmetic (clamp), avoiding lapp/Math issues.
+  capped      <- terra::clamp(clim_stack, upper = t_upper, values = TRUE)
+  gdd_monthly <- (capped - t_base) * 30
+  gdd_monthly <- terra::clamp(gdd_monthly, lower = 0, values = TRUE)
 
   # ---- Step 2: Sum to annual GDD --------------------------------------------
-  gdd_annual        <- terra::app(gdd_monthly, sum)
+  gdd_annual        <- terra::app(gdd_monthly, fun = "sum")
   names(gdd_annual) <- "annual_GDD"
 
   # ---- Step 3: Estimate number of generations per year ----------------------
-  n_gen <- terra::lapp(
-    gdd_annual,
-    fun = function(x) floor(x / n_gen_threshold)
-  )
+  n_gen        <- floor(gdd_annual / n_gen_threshold)
   names(n_gen) <- "n_generations"
 
   # ---- Step 4: Classify into risk categories --------------------------------

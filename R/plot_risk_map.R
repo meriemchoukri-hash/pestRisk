@@ -36,7 +36,7 @@
 #' @importFrom terra as.data.frame
 #' @importFrom ggplot2 ggplot aes geom_raster geom_sf scale_fill_gradientn
 #'   scale_fill_manual labs theme_minimal theme element_text coord_sf ggsave
-#' @importFrom viridis scale_fill_viridis_c
+#' @importFrom ggplot2 scale_fill_viridis_c
 #' @export
 plot_risk_map <- function(risk_map_obj,
                            type           = c("continuous", "classified"),
@@ -72,7 +72,7 @@ plot_risk_map <- function(risk_map_obj,
     ggplot2::geom_raster(data = df, ggplot2::aes(x = x, y = y, fill = value))
 
   if (type == "continuous") {
-    p <- p + viridis::scale_fill_viridis_c(
+    p <- p + ggplot2::scale_fill_viridis_c(
       option    = "inferno",
       name      = "Suitability",
       limits    = c(0, 1),

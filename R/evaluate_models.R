@@ -195,7 +195,7 @@ evaluate_models <- function(...,
   if (mod$type == "rf") {
     probs <- predict(mod$model, newdata = newdata, type = "prob")[, "1"]
   } else if (mod$type == "maxent") {
-    X     <- as.matrix(newdata[, preds, drop = FALSE])
+    X     <- as.data.frame(newdata[, preds, drop = FALSE])
     probs <- as.numeric(predict(mod$model, X, type = "logistic"))
   } else {
     stop("Unknown model type: ", mod$type, call. = FALSE)

@@ -91,7 +91,7 @@ predict_risk_map <- function(model_obj,
     # terra::predict works with maxnet if we supply a custom fun
     pred_fun <- function(model, ...) {
       d <- list(...)[[1]]
-      as.numeric(predict(model, as.matrix(d), type = "logistic"))
+      as.numeric(predict(model, as.data.frame(d), type = "logistic"))
     }
     suit <- terra::predict(clim_sub, model_obj$model,
                            fun = pred_fun, na.rm = TRUE)

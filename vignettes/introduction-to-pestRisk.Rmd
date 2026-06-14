@@ -63,7 +63,9 @@ Using the built-in example dataset:
 
 ```{r load_example}
 library(pestRisk)
-data("spodoptera_occ")
+spodoptera_occ <- read.csv(
+  system.file("extdata", "spodoptera_occ.csv", package = "pestRisk")
+)
 dim(spodoptera_occ)
 ```
 
@@ -142,7 +144,9 @@ cat("VIF values:\n"); print(prep$vif_final)
 Using the pre-built modelling dataset:
 
 ```{r load_model_data}
-data("spodoptera_model_data")
+spodoptera_model_data <- read.csv(
+  system.file("extdata", "spodoptera_model_data.csv", package = "pestRisk")
+)
 str(spodoptera_model_data)
 table(spodoptera_model_data$presence)
 ```
@@ -213,34 +217,88 @@ plot_variable_importance(mx_out, type = "response")
 
 ---
 
-## Step 8 – Predict risk map (requires raster data)
+## Step 8 – Predict and visualise the risk map (real WorldClim data)
 
-```{r predict_map, eval = FALSE}
-risk <- predict_risk_map(rf_out, clim, breaks = c(0.33, 0.66))
+This section downloads a **small WorldClim extract** (Morocco + West
+Africa, 10 arcmin resolution, ~10 MB) so the full prediction pipeline can
+run end-to-end with real climate data.
 
-# Continuous suitability map
-p1 <- plot_risk_map(
-  risk,
-  type           = "continuous",
-  occurrences_sf = clean_result$data,
-  species_name   = "Spodoptera frugiperda"
+```{r download_small_clim}
+study_ext <- c(-20, 20, 0, 40)   # xmin, xmax, ymin, ymax (Morocco + W. Africa)
+
+clim_small <- download_worldclim(
+  path   = "worldclim_data",
+  res    = "10",
+  extent = study_ext,
+  vars   = c(1, 12, 15)          # match rf_out$predictors exactly
 )
-print(p1)
 
-# Classified risk map
-p2 <- plot_risk_map(risk, type = "classified",
-                     species_name = "Spodoptera frugiperda")
-print(p2)
+clim_small
 ```
+
+```{r predict_map}
+risk <- predict_risk_map(rf_out, clim_small, breaks = c(0.33, 0.66))
+
+# Quick base-R preview
+terra::plot(risk$suitability, main = "Suitability – Spodoptera frugiperda")
+```
+
+```{r occ_for_map}
+# Keep only the occurrence points that fall inside the study extent
+occ_sub <- spodoptera_occ[
+  spodoptera_occ$decimalLongitude >= study_ext[1] &
+  spodoptera_occ$decimalLongitude <= study_ext[2] &
+  spodoptera_occ$decimalLatitude  >= study_ext[3] &
+  spodoptera_occ$decimalLatitude  <= study_ext[4], ]
+
+occ_sf <- sf::st_as_sf(occ_sub,
+                       coords = c("decimalLongitude", "decimalLatitude"),
+                       crs = 4326)
+nrow(occ_sf)
+```
+
+```{r suitability_map, fig.cap = "Continuous habitat suitability map"}
+plot_risk_map(
+  risk,
+  type            = "continuous",
+  occurrences_sf  = occ_sf,
+  species_name    = "Spodoptera frugiperda",
+  country_borders = FALSE
+)
+```
+
+```{r risk_class_map, fig.cap = "Classified invasion risk map (Low / Medium / High)"}
+plot_risk_map(
+  risk,
+  type            = "classified",
+  species_name    = "Spodoptera frugiperda",
+  country_borders = FALSE
+)
+```
+
+```{r risk_distribution}
+freq_tbl <- terra::freq(risk$risk_class)
+freq_tbl$pct <- round(100 * freq_tbl$count / sum(freq_tbl$count), 1)
+print(freq_tbl)
+```
+
+**Interpretation:** The output above shows the percentage of pixels in
+each risk category (Low / Medium / High) for the study extent. Areas
+classified as **High** (suitability > 0.66) should be prioritised for
+phytosanitary surveillance.
 
 ---
 
 ## Step 9 – Country risk summary
 
-```{r country_risk, eval = FALSE}
-country_tbl <- summarize_country_risk(risk, top_n = 15)
-print(country_tbl)
+```{r country_risk}
+country_tbl <- summarize_country_risk(risk, top_n = 10)
+print(country_tbl[, c("risk_rank", "region", "mean_suitability", "pct_high_risk")])
 ```
+
+**Interpretation:** Countries with a high `mean_suitability` and high
+`pct_high_risk` should be prioritised for fall armyworm monitoring
+programmes.
 
 ---
 
@@ -259,6 +317,57 @@ generate_report(
   author          = "Meriem Choukri"
 )
 ```
+
+---
+
+## Step 10 – New features: ensemble model & degree-day risk
+
+### 10a. Ensemble suitability (RF + MaxEnt)
+
+`ensemble_suitability()` combines both models, weighted by their AUC
+scores from Step 6.
+
+```{r ensemble}
+mx_risk <- predict_risk_map(mx_out, clim_small, breaks = c(0.33, 0.66))
+
+rf_auc <- eval_out$metrics$AUC[eval_out$metrics$Model == "Random Forest"]
+mx_auc <- eval_out$metrics$AUC[eval_out$metrics$Model == "MaxEnt"]
+
+ens <- ensemble_suitability(
+  rf_risk = risk,
+  mx_risk = mx_risk,
+  rf_auc  = rf_auc,
+  mx_auc  = mx_auc
+)
+
+terra::plot(ens$ensemble_suitability,
+            main = "Ensemble suitability (AUC-weighted RF + MaxEnt)")
+```
+
+### 10b. Thermal degree-day risk (generations per year)
+
+`degree_days_risk()` converts WorldClim monthly mean temperature into an
+estimate of how many pest generations can be completed per year — a
+direct measure of invasion *intensity*, not just presence/absence.
+
+```{r degree_days}
+tavg <- geodata::worldclim_global(var = "tavg", res = 10,
+                                   path = "worldclim_data")
+tavg_small <- terra::crop(tavg, terra::ext(study_ext))
+
+dd <- degree_days_risk(
+  clim_stack      = tavg_small,
+  t_base          = 12.5,   # S. frugiperda lower threshold
+  n_gen_threshold = 450
+)
+
+terra::plot(dd$n_generations,
+            main = "Estimated generations/year – S. frugiperda")
+```
+
+**Interpretation:** Pixels with **≥ 3 generations/year** represent zones
+where chemical control is likely to fail due to rapid pest reproduction —
+these areas require integrated pest management (IPM) strategies.
 
 ---
 
